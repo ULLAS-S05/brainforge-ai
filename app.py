@@ -1,62 +1,44 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from groq import Groq
-from dotenv import load_dotenv
 import os
-
-load_dotenv()
+from groq import Groq
 
 app = Flask(__name__)
 CORS(app)
 
+# SAFE GROQ CLIENT
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
-MODEL = "llama-3.1-8b-instant"
-
-def ask_ai(prompt):
-    res = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role":"user","content":prompt}],
-        temperature=0.7
-    )
-    return res.choices[0].message.content
 
 @app.route("/")
 def home():
-    return jsonify({"message":"BrainForgeAI Backend Running"})
+    return jsonify({"status": "BrainForge AI backend running 🚀"})
 
-@app.route("/notes", methods=["POST"])
-def notes():
-    text = request.json["text"]
-    prompt = f"Convert this into clean study notes with headings and bullet points:\n{text}"
-    return jsonify({"result": ask_ai(prompt)})
+@app.route("/api/generate", methods=["POST"])
+def generate():
+    try:
+        data = request.get_json()
+        prompt = data.get("prompt", "")
 
-@app.route("/planner", methods=["POST"])
-def planner():
-    data = request.json
+        if not prompt:
+            return jsonify({"error": "No prompt provided"}), 400
 
-    prompt = f"""
-Create a smart study planner.
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
 
-Subjects: {data['subjects']}
-Exam Date: {data['date']}
-Daily Free Hours: {data['hours']}
+        result = response.choices[0].message.content
 
-Give daily plan.
-"""
-    return jsonify({"result": ask_ai(prompt)})
+        return jsonify({"result": result})
 
-@app.route("/quiz", methods=["POST"])
-def quiz():
-    text = request.json["text"]
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
 
-    prompt = f"""
-Create a quiz from these notes.
-Give questions, answers and explanations.
-
-{text}
-"""
-    return jsonify({"result": ask_ai(prompt)})
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
